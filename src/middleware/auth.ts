@@ -49,6 +49,11 @@ export async function userAuth(c: Context<AppEnv>, next: Next) {
     const email = await verifyGoogleIdToken(token, c.env.GOOGLE_CLIENT_ID);
     const allowed = c.env.ALLOWED_EMAILS.split(',').map((e) => e.trim().toLowerCase());
     if (!email || !allowed.includes(email.toLowerCase())) {
+      // Safe to log — it's the email Google's token says signed in, not
+      // the ALLOWED_EMAILS secret itself. Lets you confirm via `wrangler
+      // tail` whether a rejected sign-in was a wrong/missing allowlist
+      // entry vs. something else, without ever reading the secret back.
+      console.log(`Rejected sign-in: ${email ?? '(no verified email in token)'}`);
       return c.json({ error: 'Not authorized.' }, 403);
     }
     c.set('userEmail', email);
