@@ -1,0 +1,22 @@
+name = "site-assets-backend"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "site-assets-db"
+database_id = "ca2af53d-b9b0-41d2-8ca5-c8208250c77b"
+
+[[r2_buckets]]
+binding = "ASSETS_BUCKET"
+bucket_name = "site-assets"
+# Create for real with `wrangler r2 bucket create site-assets` before deploying.
+
+[vars]
+# ACCESS_AUD / ACCESS_TEAM_DOMAIN are set as secrets (`wrangler secret put`)
+# once the Access application exists, not declared here — a var and a
+# secret can't share a binding name. Locally, .dev.vars fills the gap
+# instead (see .dev.vars.example).
+# When "true", the auth middleware is bypassed — only ever set this in
+# .dev.vars for local development, never in a deployed environment.
+DEV_BYPASS_AUTH = "false"
