@@ -46,3 +46,24 @@ assetsRoute.post('/', async (c) => {
 
   return c.json({ id, r2Key, contentType: file.type }, 201);
 });
+
+// Serves an uploaded image back out. Still behind Access like everything
+// else under /api — there's no public (unauthenticated) read path yet,
+// since how the live public site will eventually serve these is a
+// deliberately deferred decision, not this endpoint's job.
+assetsRoute.get('/:filename', async (c) => {
+  const siteId = c.req.param('siteId')!;
+  const filename = c.req.param('filename')!;
+  const object = await c.env.ASSETS_BUCKET.get(`${siteId}/${filename}`);
+
+  if (!object) {
+    return c.json({ error: 'Asset not found.' }, 404);
+  }
+
+  return new Response(object.body, {
+    headers: {
+      'Content-Type': object.httpMetadata?.contentType ?? 'application/octet-stream',
+      'Cache-Control': 'private, max-age=31536000, immutable',
+    },
+  });
+});
