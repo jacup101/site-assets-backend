@@ -13,10 +13,12 @@ bucket_name = "site-assets"
 # Create for real with `wrangler r2 bucket create site-assets` before deploying.
 
 [vars]
-# ACCESS_AUD / ACCESS_TEAM_DOMAIN are set as secrets (`wrangler secret put`)
-# once the Access application exists, not declared here — a var and a
-# secret can't share a binding name. Locally, .dev.vars fills the gap
-# instead (see .dev.vars.example).
+# GOOGLE_CLIENT_ID isn't sensitive — it's already public in the admin UI's
+# own bundle (Google's client-side sign-in widget needs it there too).
+GOOGLE_CLIENT_ID = "REPLACE_WITH_GOOGLE_OAUTH_CLIENT_ID"
+# ALLOWED_EMAILS and ADMIN_API_KEY are set as secrets (`wrangler secret
+# put`) instead of here — a var and a secret can't share a binding name.
+# Locally, .dev.vars fills the gap instead (see .dev.vars.example).
 # When "true", the auth middleware is bypassed — only ever set this in
 # .dev.vars for local development, never in a deployed environment.
 DEV_BYPASS_AUTH = "false"

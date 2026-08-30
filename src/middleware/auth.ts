@@ -2,53 +2,65 @@ import type { Context, Next } from 'hono';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import type { AppEnv } from '../env.ts';
 
-// One JWKS fetcher per team domain, reused across requests within the same
-// Worker isolate (createRemoteJWKSet caches the fetched keys internally too).
-const jwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
+// Verifies Google's own ID tokens directly — no Cloudflare Access involved.
+// A browser gets this token from Google's "Sign in with Google" widget
+// (client-side, no server round trip to get it) and sends it as a plain
+// Authorization: Bearer header on every request. We just need to confirm
+// Google really issued it, for this app, and the email is one we trust.
+const GOOGLE_JWKS = createRemoteJWKSet(new URL('https://www.googleapis.com/oauth2/v3/certs'));
 
-function getJwks(teamDomain: string) {
-  let jwks = jwksCache.get(teamDomain);
-  if (!jwks) {
-    jwks = createRemoteJWKSet(new URL(`https://${teamDomain}/cdn-cgi/access/certs`));
-    jwksCache.set(teamDomain, jwks);
-  }
-  return jwks;
+async function verifyGoogleIdToken(token: string, clientId: string): Promise<string | null> {
+  const { payload } = await jwtVerify(token, GOOGLE_JWKS, {
+    issuer: ['https://accounts.google.com', 'accounts.google.com'],
+    audience: clientId,
+  });
+  if (payload.email_verified !== true || typeof payload.email !== 'string') return null;
+  return payload.email;
 }
 
 /**
- * Verifies the Cf-Access-Jwt-Assertion header Cloudflare Access attaches to
- * every request that made it past the Access login wall. This is defense
- * in depth, not the primary gate — Access itself should already be
- * blocking unauthenticated requests before they ever reach this Worker.
+ * Accepts either:
+ *  - Authorization: Bearer <google-id-token>  — a human, signed in via
+ *    Google's client-side widget; verified against Google's own keys and
+ *    checked against ALLOWED_EMAILS.
+ *  - Authorization: Bearer <ADMIN_API_KEY>    — a trusted script (the local
+ *    admin tool), which has no browser to sign in with; a plain shared
+ *    secret compared directly.
  *
  * Set DEV_BYPASS_AUTH=true in .dev.vars (gitignored, local-only) to skip
- * this during local development, where there's no real Access session to
- * present. Never set it in a deployed environment.
+ * this during local development. Never set it in a deployed environment.
  */
-export async function accessAuth(c: Context<AppEnv>, next: Next) {
+export async function userAuth(c: Context<AppEnv>, next: Next) {
   if (c.env.DEV_BYPASS_AUTH === 'true') {
     await next();
     return;
   }
 
-  const token = c.req.header('Cf-Access-Jwt-Assertion');
+  const header = c.req.header('Authorization') || '';
+  const token = header.startsWith('Bearer ') ? header.slice('Bearer '.length) : '';
   if (!token) {
-    return c.json({ error: 'Missing Cloudflare Access token.' }, 401);
+    return c.json({ error: 'Missing Authorization header.' }, 401);
   }
 
-  if (!c.env.ACCESS_AUD || !c.env.ACCESS_TEAM_DOMAIN) {
-    return c.json({ error: 'Access is not configured on this Worker.' }, 500);
+  if (c.env.ADMIN_API_KEY && token === c.env.ADMIN_API_KEY) {
+    c.set('userEmail', 'admin-tool');
+    await next();
+    return;
+  }
+
+  if (!c.env.GOOGLE_CLIENT_ID || !c.env.ALLOWED_EMAILS) {
+    return c.json({ error: 'Auth is not configured on this Worker.' }, 500);
   }
 
   try {
-    const jwks = getJwks(c.env.ACCESS_TEAM_DOMAIN);
-    const { payload } = await jwtVerify(token, jwks, {
-      audience: c.env.ACCESS_AUD,
-      issuer: `https://${c.env.ACCESS_TEAM_DOMAIN}`,
-    });
-    c.set('accessEmail', typeof payload.email === 'string' ? payload.email : undefined);
+    const email = await verifyGoogleIdToken(token, c.env.GOOGLE_CLIENT_ID);
+    const allowed = c.env.ALLOWED_EMAILS.split(',').map((e) => e.trim().toLowerCase());
+    if (!email || !allowed.includes(email.toLowerCase())) {
+      return c.json({ error: 'Not authorized.' }, 403);
+    }
+    c.set('userEmail', email);
   } catch {
-    return c.json({ error: 'Invalid Cloudflare Access token.' }, 401);
+    return c.json({ error: 'Invalid or expired sign-in token.' }, 401);
   }
 
   await next();

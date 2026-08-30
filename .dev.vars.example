@@ -1,1 +1,5 @@
 DEV_BYPASS_AUTH=true
+# Only needed locally if you want to test real auth instead of bypassing it:
+# GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+# ALLOWED_EMAILS=you@example.com,friend@example.com
+# ADMIN_API_KEY=some-long-random-string

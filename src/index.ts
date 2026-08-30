@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { getCollection } from './collections/registry.ts';
 import type { AppEnv } from './env.ts';
-import { accessAuth } from './middleware/auth.ts';
+import { userAuth } from './middleware/auth.ts';
 import { assetsRoute } from './routes/assets.ts';
 import { documentsRoute } from './routes/documents.ts';
 import { entriesRoute } from './routes/entries.ts';
@@ -21,7 +21,20 @@ app.get('/health', (c) => c.json({ ok: true }));
 app.use('/public/*', cors());
 app.route('/public', publicReadRoute);
 
-app.use('/api/*', accessAuth);
+// The admin UI calls this directly from the browser (no proxy, no
+// Cloudflare Access) — it authenticates itself with a Google ID token in
+// the Authorization header instead. CORS just needs to let that header
+// through from the site(s) allowed to host the admin UI; no cookies are
+// involved, so `credentials: true` isn't needed here.
+app.use(
+  '/api/*',
+  cors({
+    origin: ['https://brandonlien.com', 'https://www.brandonlien.com', 'http://localhost:5173'],
+    allowHeaders: ['Authorization', 'Content-Type'],
+    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  })
+);
+app.use('/api/*', userAuth);
 
 app.get('/api/sites/:siteId/collections/:collectionId/schema', (c) => {
   const collectionId = c.req.param('collectionId');
