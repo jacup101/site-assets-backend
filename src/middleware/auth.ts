@@ -19,13 +19,12 @@ async function verifyGoogleIdToken(token: string, clientId: string): Promise<str
 }
 
 /**
- * Accepts either:
- *  - Authorization: Bearer <google-id-token>  — a human, signed in via
- *    Google's client-side widget; verified against Google's own keys and
- *    checked against ALLOWED_EMAILS.
- *  - Authorization: Bearer <ADMIN_API_KEY>    — a trusted script (the local
- *    admin tool), which has no browser to sign in with; a plain shared
- *    secret compared directly.
+ * Requires Authorization: Bearer <google-id-token> — a human, signed in
+ * via Google's client-side widget; verified against Google's own keys
+ * and checked against ALLOWED_EMAILS. There's no other credential this
+ * accepts: no static shared secret, no service token. If something
+ * other than a signed-in browser ever needs to call this API, it should
+ * get here the same way — no back door for scripts.
  *
  * Set DEV_BYPASS_AUTH=true in .dev.vars (gitignored, local-only) to skip
  * this during local development. Never set it in a deployed environment.
@@ -40,12 +39,6 @@ export async function userAuth(c: Context<AppEnv>, next: Next) {
   const token = header.startsWith('Bearer ') ? header.slice('Bearer '.length) : '';
   if (!token) {
     return c.json({ error: 'Missing Authorization header.' }, 401);
-  }
-
-  if (c.env.ADMIN_API_KEY && token === c.env.ADMIN_API_KEY) {
-    c.set('userEmail', 'admin-tool');
-    await next();
-    return;
   }
 
   if (!c.env.GOOGLE_CLIENT_ID || !c.env.ALLOWED_EMAILS) {
