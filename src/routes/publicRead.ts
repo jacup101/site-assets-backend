@@ -67,3 +67,27 @@ publicReadRoute.get('/sites/:siteId/documents/:collectionId', (c) =>
     return c.json(doc ?? { data: {}, updatedAt: null }, 200, { 'Cache-Control': CACHE_CONTROL });
   })
 );
+
+// Public image serving — a visitor's browser loads these directly via
+// <img src>, so unlike the admin tool (which proxies the authenticated
+// version through its own server) there's no way to keep this behind
+// Access. Image bytes for a given key never change once uploaded, so this
+// can cache aggressively and for a long time.
+publicReadRoute.get('/sites/:siteId/assets/:filename', (c) =>
+  withEdgeCache(c, async () => {
+    const siteId = c.req.param('siteId');
+    const filename = c.req.param('filename');
+    const object = await c.env.ASSETS_BUCKET.get(`${siteId}/${filename}`);
+
+    if (!object) {
+      return c.json({ error: 'Asset not found.' }, 404);
+    }
+
+    return new Response(object.body, {
+      headers: {
+        'Content-Type': object.httpMetadata?.contentType ?? 'application/octet-stream',
+        'Cache-Control': 'public, max-age=31536000, immutable',
+      },
+    });
+  })
+);
