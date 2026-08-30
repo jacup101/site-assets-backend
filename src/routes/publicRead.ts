@@ -20,6 +20,19 @@ export const publicReadRoute = new Hono<AppEnv>();
 
 const CACHE_CONTROL = 'public, max-age=120, s-maxage=120';
 
+// Called from entries.ts/documents.ts after a successful write, so a
+// save shows up on the public site right away instead of waiting out
+// the cache's 2-minute TTL. Note: caches.default is per-edge-location,
+// not global — this clears the copy at whichever colo handled this
+// write, which covers the common case (the same person checking their
+// own change) without needing a real Cloudflare-API cache purge call.
+export async function purgePublicCache(c: Context<AppEnv>, path: string) {
+  const url = new URL(c.req.url);
+  url.pathname = path;
+  url.search = '';
+  await caches.default.delete(new Request(url.toString(), { method: 'GET' }));
+}
+
 async function withEdgeCache(c: Context<AppEnv>, compute: () => Promise<Response>): Promise<Response> {
   const cache = caches.default;
   const cacheKey = new Request(c.req.url, { method: 'GET' });

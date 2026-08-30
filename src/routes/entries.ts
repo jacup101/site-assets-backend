@@ -3,6 +3,7 @@ import { getCollection } from '../collections/registry.ts';
 import { shapeData } from '../collections/validate.ts';
 import { createEntry, deleteEntry, listEntries, reorderEntries, siteExists, updateEntry } from '../db.ts';
 import type { AppEnv } from '../env.ts';
+import { purgePublicCache } from './publicRead.ts';
 
 export const entriesRoute = new Hono<AppEnv>();
 
@@ -44,6 +45,7 @@ entriesRoute.post('/', async (c) => {
   try {
     const data = shapeData(config.fields, body.data);
     const entry = await createEntry(c.env.DB, siteId, collectionId, body.slug.trim(), data);
+    c.executionCtx.waitUntil(purgePublicCache(c, `/public/sites/${siteId}/collections/${collectionId}/entries`));
     return c.json(entry, 201);
   } catch (err) {
     return c.json({ error: (err as Error).message }, 400);
@@ -67,6 +69,7 @@ entriesRoute.put('/reorder', async (c) => {
   }
 
   await reorderEntries(c.env.DB, siteId, collectionId, body.order);
+  c.executionCtx.waitUntil(purgePublicCache(c, `/public/sites/${siteId}/collections/${collectionId}/entries`));
   return c.json(await listEntries(c.env.DB, siteId, collectionId));
 });
 
@@ -80,6 +83,7 @@ entriesRoute.put('/:slug', async (c) => {
     const data = shapeData(config.fields, body?.data);
     const updated = await updateEntry(c.env.DB, siteId, collectionId, slug, data);
     if (!updated) return c.json({ error: 'Entry not found.' }, 404);
+    c.executionCtx.waitUntil(purgePublicCache(c, `/public/sites/${siteId}/collections/${collectionId}/entries`));
     return c.json(updated);
   } catch (err) {
     return c.json({ error: (err as Error).message }, 400);
@@ -91,5 +95,6 @@ entriesRoute.delete('/:slug', async (c) => {
   const slug = c.req.param('slug')!;
   const removed = await deleteEntry(c.env.DB, siteId, collectionId, slug);
   if (!removed) return c.json({ error: 'Entry not found.' }, 404);
+  c.executionCtx.waitUntil(purgePublicCache(c, `/public/sites/${siteId}/collections/${collectionId}/entries`));
   return c.json({ ok: true });
 });

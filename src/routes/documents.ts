@@ -3,6 +3,7 @@ import { getDocument as getDocConfig } from '../collections/registry.ts';
 import { shapeData } from '../collections/validate.ts';
 import { getDocument, putDocument, siteExists } from '../db.ts';
 import type { AppEnv } from '../env.ts';
+import { purgePublicCache } from './publicRead.ts';
 
 export const documentsRoute = new Hono<AppEnv>();
 
@@ -42,7 +43,9 @@ documentsRoute.put('/', async (c) => {
 
   try {
     const data = shapeData(config.fields, body?.data);
-    return c.json(await putDocument(c.env.DB, siteId, collectionId, data));
+    const doc = await putDocument(c.env.DB, siteId, collectionId, data);
+    c.executionCtx.waitUntil(purgePublicCache(c, `/public/sites/${siteId}/documents/${collectionId}`));
+    return c.json(doc);
   } catch (err) {
     return c.json({ error: (err as Error).message }, 400);
   }
