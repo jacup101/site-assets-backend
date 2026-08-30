@@ -32,6 +32,9 @@ app.use(
     origin: [
       'https://brandonlien.com',
       'https://www.brandonlien.com',
+      // Custom domain used for the beta deployment of brandon-site.
+      'https://joshuapulido.com',
+      'https://www.joshuapulido.com',
       'http://localhost:5173',
       // Tailscale MagicDNS name for testing the admin UI from another
       // device on the tailnet (e.g. a phone) — Google's OAuth client
