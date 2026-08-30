@@ -29,7 +29,16 @@ app.route('/public', publicReadRoute);
 app.use(
   '/api/*',
   cors({
-    origin: ['https://brandonlien.com', 'https://www.brandonlien.com', 'http://localhost:5173'],
+    origin: [
+      'https://brandonlien.com',
+      'https://www.brandonlien.com',
+      'http://localhost:5173',
+      // Tailscale MagicDNS name for testing the admin UI from another
+      // device on the tailnet (e.g. a phone) — Google's OAuth client
+      // only allows http://localhost as a JS origin, so this is how a
+      // second device gets a real HTTPS origin during local dev.
+      'https://dev.tail85afd5.ts.net:8443',
+    ],
     allowHeaders: ['Authorization', 'Content-Type'],
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   })
