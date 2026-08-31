@@ -18,7 +18,13 @@ import type { AppEnv } from '../env.ts';
 
 export const publicReadRoute = new Hono<AppEnv>();
 
-const CACHE_CONTROL = 'public, max-age=120, s-maxage=120';
+// Short on purpose: purgePublicCache below only clears the copy at whichever
+// edge colo handled the write, not every colo globally (see its comment) —
+// so a visitor hitting a different colo can still see a stale response for
+// up to this long even right after a save. 120s made that noticeable enough
+// to read as a bug ("my add didn't show up"); this trades a bit more D1
+// load — trivial for this traffic level — for that window rarely mattering.
+const CACHE_CONTROL = 'public, max-age=20, s-maxage=20';
 
 // Called from entries.ts/documents.ts after a successful write, so a
 // save shows up on the public site right away instead of waiting out
