@@ -1,0 +1,30 @@
+name: Canary
+
+on:
+  workflow_dispatch:
+    inputs:
+      site_id:
+        description: Which site to check
+        required: true
+        default: brandon-site-beta
+        type: choice
+        options:
+          - brandon-site-beta
+          - brandon-site
+  schedule:
+    # Every 6 hours, checking prod — an ongoing check that the live public
+    # API (which brandonlien.com's /post-sound page reads from directly)
+    # hasn't quietly broken, independent of whether a deploy just happened.
+    - cron: '0 */6 * * *'
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm run canary
+        env:
+          SITE_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.site_id || 'brandon-site' }}
